@@ -12,6 +12,11 @@
 		<Property Name="server.vi.callsEnabled" Type="Bool">true</Property>
 		<Property Name="server.vi.propertiesEnabled" Type="Bool">true</Property>
 		<Property Name="specify.custom.address" Type="Bool">false</Property>
+		<Item Name="subvi" Type="Folder">
+			<Item Name="packet_build.vi" Type="VI" URL="../subvi/packet_build.vi"/>
+		</Item>
+		<Item Name="test" Type="Folder"/>
+		<Item Name="fake_arduino.vi" Type="VI" URL="../test/fake_arduino.vi"/>
 		<Item Name="Dependencies" Type="Dependencies"/>
 		<Item Name="Build Specifications" Type="Build"/>
 	</Item>
