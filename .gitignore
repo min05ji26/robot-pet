@@ -11,3 +11,4 @@
 build/
 *.hex
 *.elf
+*.UserState/
