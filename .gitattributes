@@ -1,0 +1,5 @@
+# LabVIEW 파일은 바이너리 (줄바꿈 변환·diff 금지)
+*.vi binary
+*.ctl binary
+*.lvlib binary
+*.lvproj binary

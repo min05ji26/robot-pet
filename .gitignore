@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+
+# LabVIEW 자동 생성 파일
+*.lvlps
+*.aliases
+*.lvproj.bak
+*.vi.bak
+
+# Arduino 빌드 결과
+build/
+*.hex
+*.elf
