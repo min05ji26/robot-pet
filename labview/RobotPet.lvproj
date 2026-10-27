@@ -14,6 +14,7 @@
 		<Property Name="specify.custom.address" Type="Bool">false</Property>
 		<Item Name="subvi" Type="Folder">
 			<Item Name="packet_build.vi" Type="VI" URL="../subvi/packet_build.vi"/>
+			<Item Name="packet_receive.vi" Type="VI" URL="../subvi/packet_receive.vi"/>
 		</Item>
 		<Item Name="test" Type="Folder"/>
 		<Item Name="fake_arduino.vi" Type="VI" URL="../test/fake_arduino.vi"/>
