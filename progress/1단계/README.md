@@ -42,7 +42,7 @@
 |---|---|
 | CMD 2, D1 0, D2 90 (서보 0번 90도) | `0202 005A 5C03` |
 
-VISA Write 연결은 `main.vi`에서 했다 → [VISA 수신·송신 연결](#-visa-수신송신-연결)
+VISA Write 연결은 `main.vi`에서 했다 → [VISA 수신·송신 연결](#-visa-수신송신-연결) (위쪽 채널·각도 → packet_build → 서보 보내기 → Write)
 
 ## 3. 패킷 수신 subVI
 
@@ -135,7 +135,12 @@ While + Case + 시프트 레지스터. 상태 6개를 U8 Enum으로 만들고 �
 | 각도 180 | `0202 00B4 B603` ✅ |
 | 박수 보내기 | 트리거감지 ✅ |
 
+![VISA 수신·송신 완성](images/main_visa_send_receive.png)
+
+<details><summary>수신만 연결했을 때 (송신 추가 전)</summary>
+
 ![VISA 수신 연결](images/main_visa_receive.png)
+</details>
 
 > 이 Mac에는 **NI-VISA가 아직 설치되지 않아** 실행 시 에러 -1073807202가 뜬다 (Continue로 넘어가면 시험 가능). 실제 연결 전에 설치 필요.
 
