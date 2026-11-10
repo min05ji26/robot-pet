@@ -18,6 +18,7 @@
 		</Item>
 		<Item Name="test" Type="Folder"/>
 		<Item Name="fake_arduino.vi" Type="VI" URL="../test/fake_arduino.vi"/>
+		<Item Name="main.vi" Type="VI" URL="../main.vi"/>
 		<Item Name="Dependencies" Type="Dependencies"/>
 		<Item Name="Build Specifications" Type="Build"/>
 	</Item>
