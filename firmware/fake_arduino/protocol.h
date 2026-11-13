@@ -31,7 +31,8 @@ enum : uint8_t {
 enum : uint8_t { ERR_CHECKSUM = 1, ERR_ETX = 2, ERR_UNKNOWN_CMD = 3 };
 
 // 0x86 D1: 안전정지 원인
-enum : uint8_t { STOP_COMM_LOST = 1, STOP_NEAR_OBSTACLE = 2, STOP_LOW_BATTERY = 3 };
+// 통신 규칙표에 맞게 수정: 1 근접 / 2 통신 끊김 (전에는 1·2가 바뀌어 있었음)
+enum : uint8_t { STOP_NEAR_OBSTACLE = 1, STOP_COMM_LOST = 2, STOP_LOW_BATTERY = 3 };
 
 // FSM 상태 번호
 enum : uint8_t { ST_IDLE = 0, ST_TRIGGERED, ST_REACT, ST_EXPLORE, ST_AVOID, ST_RETURN };
