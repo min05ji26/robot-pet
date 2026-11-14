@@ -12,12 +12,13 @@
 // 진행 (노션 3단계 SW)
 //   [x] 표정 그리기 drawFace(번호): face.h (U8g2 _1_ 페이지 버퍼)
 //       + 대기 깜빡임·10초 뒤 잠, 이동 중 입 꼼지락, 복귀 끝나면 웃음 (updateFace)
-//   [ ] 멜로디 playMelody(번호): PROGMEM 저장, 상태별 2~3곡
+//   [x] 멜로디 playMelody(번호): melody.h (PROGMEM, 1 깸 / 2 기쁨 / 3 잘 자), 끝나면 0x84
 //   [ ] 자체 소음 블랭킹: 모터·서보·부저 동작 중 + 끝난 뒤 300ms 마이크 무시
 //   [ ] String 안 쓰기, SRAM 75% 이하
 
 #include "protocol.h"
 #include "face.h"  // 표정 drawFace() — 라이브러리 매니저에서 U8g2 설치 필요
+#include "melody.h"  // 멜로디 playMelody() — 부저 D12
 
 // 통신 경로 선택
 //   0 = USB 케이블 (Serial)          ← LabVIEW와 USB로 시험할 때
@@ -109,7 +110,6 @@ bool receivePacket(uint8_t &cmd, uint8_t &d1, uint8_t &d2) {
 // ---- 부품 함수 자리 (HW 담당 코드를 가져와 채운다) ----
 // 지금은 비어 있어서 명령을 받아도 부품은 안 움직이고 0x84만 보낸다
 void setAngle(uint8_t ch, uint8_t angle) {}  // 서보: firmware/tests/servo_oled_test
-void playMelody(uint8_t num) {}              // 멜로디: 3단계
 void forward(uint8_t spd) {}                 // 모터: firmware/tests/motor_functions
 void backward(uint8_t spd) {}
 void turnLeft(uint8_t spd) {}
@@ -130,9 +130,9 @@ void handleCommand(uint8_t cmd, uint8_t d1, uint8_t d2) {
       if (d2 > 180) d2 = 180;
       setAngle(d1, d2);
       break;
-    case CMD_MELODY:  // 0x03 멜로디: D1 = 번호 (재생이 끝나면 0x84 — 지금은 바로)
-      playMelody(d1);
-      break;
+    case CMD_MELODY:  // 0x03 멜로디: D1 = 번호 (0 멈춤 / 1 깸 / 2 기쁨 / 3 잘 자)
+      if (playMelody(d1)) return;  // 재생이 끝날 때 loop()에서 0x84를 보냄
+      break;                       // 멈춤·없는 번호는 바로 0x84
     case CMD_THRESHOLD:  // 0x04 박수 임계값: D1 = 값÷4
       clapThreshold = d1 * 4;
       break;
@@ -235,4 +235,5 @@ void loop() {
   periodicTasks(now);
   checkHeartbeat(now);
   updateFace(now);  // 표정 움직임 (깜빡임·잠·입 꼼지락)
+  if (updateMelody(now)) sendPacket(RSP_DONE, CMD_MELODY, 0);  // 멜로디가 끝나면 0x84
 }
