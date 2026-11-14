@@ -7,6 +7,7 @@
 //   [x] handleCommand() 분기 뼈대 (0x01~0x07), 처리 후 0x84
 //   [x] 주기 작업: 초음파 200ms → 0x82, 배터리 1초 → 0x83
 //   [x] 하트비트 1초 끊기면 모터 정지 + 0x86
+//   [x] 근접 10cm 이하 시 아두이노가 즉시 모터 정지 + 0x86 (LabVIEW 판단 없이)
 
 #include "protocol.h"
 
@@ -36,6 +37,10 @@ unsigned long lastHeartbeatMs = 0;  // 마지막 0x07 받은 시각
 bool heartbeatSeen = false;   // 첫 하트비트 전에는 끊김 판단 안 함
 bool commLostSent = false;    // 한 번 끊길 때 0x86은 한 번만 보냄
 bool safeStopped = false;     // 안전 정지 중: 0x06(모터) 무시, 0x01로 대기(0)·복귀(5)를 받으면 풀림
+
+// 근접 정지: 10cm 이하면 LabVIEW 판단 없이 바로 멈춤
+const uint8_t NEAR_STOP_CM = 10;
+bool nearSent = false;        // 가까이 있는 동안 0x86은 한 번만 (10cm보다 멀어지면 다시 보낼 수 있음)
 
 // 센서 핀 (HW 배선 기준)
 const uint8_t TRIG_PIN = 10, ECHO_PIN = 11;  // 초음파 HC-SR04
@@ -168,11 +173,26 @@ uint8_t readBatteryX10() {
   return (raw * 100 + 511) / 1023;  // raw × 5 ÷ 1023 × 2 × 10, 반올림
 }
 
+// 10cm 이하면 모터를 멈추고 0x86(원인 1 근접)을 보낸다
+void checkNear(uint8_t cm) {
+  if (cm <= NEAR_STOP_CM) {
+    if (nearSent) return;
+    stopMotor();
+    safeStopped = true;
+    nearSent = true;
+    sendPacket(RSP_SAFE_STOP, STOP_NEAR_OBSTACLE, 0);
+  } else {
+    nearSent = false;
+  }
+}
+
 // 정해진 시간마다 센서 값을 LabVIEW로 보낸다 (delay 없이 millis로 재서 패킷 받기를 막지 않음)
 void periodicTasks(unsigned long now) {
   if (now - lastDistMs >= DIST_PERIOD_MS) {
     lastDistMs = now;
-    sendPacket(RSP_DISTANCE, readDistanceCm(), 0);  // 0x82: D1 = cm
+    uint8_t cm = readDistanceCm();
+    sendPacket(RSP_DISTANCE, cm, 0);  // 0x82: D1 = cm
+    checkNear(cm);
   }
   if (now - lastBattMs >= BATT_PERIOD_MS) {
     lastBattMs = now;
