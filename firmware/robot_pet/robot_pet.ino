@@ -8,8 +8,16 @@
 //   [x] 주기 작업: 초음파 200ms → 0x82, 배터리 1초 → 0x83
 //   [x] 하트비트 1초 끊기면 모터 정지 + 0x86
 //   [x] 근접 10cm 이하 시 아두이노가 즉시 모터 정지 + 0x86 (LabVIEW 판단 없이)
+//
+// 진행 (노션 3단계 SW)
+//   [x] 표정 그리기 drawFace(번호): face.h (U8g2 _1_ 페이지 버퍼)
+//       + 대기 깜빡임·10초 뒤 잠, 이동 중 입 꼼지락, 복귀 끝나면 웃음 (updateFace)
+//   [ ] 멜로디 playMelody(번호): PROGMEM 저장, 상태별 2~3곡
+//   [ ] 자체 소음 블랭킹: 모터·서보·부저 동작 중 + 끝난 뒤 300ms 마이크 무시
+//   [ ] String 안 쓰기, SRAM 75% 이하
 
 #include "protocol.h"
+#include "face.h"  // 표정 drawFace() — 라이브러리 매니저에서 U8g2 설치 필요
 
 // 통신 경로 선택
 //   0 = USB 케이블 (Serial)          ← LabVIEW와 USB로 시험할 때
@@ -102,7 +110,6 @@ bool receivePacket(uint8_t &cmd, uint8_t &d1, uint8_t &d2) {
 // 지금은 비어 있어서 명령을 받아도 부품은 안 움직이고 0x84만 보낸다
 void setAngle(uint8_t ch, uint8_t angle) {}  // 서보: firmware/tests/servo_oled_test
 void playMelody(uint8_t num) {}              // 멜로디: 3단계
-void drawFace(uint8_t num) {}                // 표정(OLED): 3단계
 void forward(uint8_t spd) {}                 // 모터: firmware/tests/motor_functions
 void backward(uint8_t spd) {}
 void turnLeft(uint8_t spd) {}
@@ -213,6 +220,8 @@ void checkHeartbeat(unsigned long now) {
 
 void setup() {
   LINK.begin(BAUD);
+  faceBegin();
+  drawFace(ST_IDLE);  // 전원 켜면 대기(감은 눈)
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
 }
@@ -225,4 +234,5 @@ void loop() {
   unsigned long now = millis();
   periodicTasks(now);
   checkHeartbeat(now);
+  updateFace(now);  // 표정 움직임 (깜빡임·잠·입 꼼지락)
 }
