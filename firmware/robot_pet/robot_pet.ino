@@ -6,7 +6,7 @@
 //   [x] receivePacket() + 체크섬 검사 + 오류 시 0x85 전송
 //   [x] handleCommand() 분기 뼈대 (0x01~0x07), 처리 후 0x84
 //   [x] 주기 작업: 초음파 200ms → 0x82, 배터리 1초 → 0x83
-//   [ ] 하트비트 1초 끊기면 모터 정지 + 0x86
+//   [x] 하트비트 1초 끊기면 모터 정지 + 0x86
 
 #include "protocol.h"
 
@@ -30,7 +30,12 @@ uint8_t rxLen = 0;
 
 uint8_t currentState = ST_IDLE;   // LabVIEW가 0x01로 알려 주는 현재 상태 (0~5)
 uint16_t clapThreshold = 200;     // 박수 임계값 (마이크 3.3V, 50ms 최댓값−최솟값 기준 측정값)
-unsigned long lastHeartbeatMs = 0;  // 마지막 0x07 받은 시각 (하트비트 감시 항목에서 사용)
+// 하트비트 감시: LabVIEW가 0x07을 200~300ms마다 보낸다. 1초 넘게 안 오면 통신 끊김
+const unsigned long HEARTBEAT_TIMEOUT_MS = 1000;
+unsigned long lastHeartbeatMs = 0;  // 마지막 0x07 받은 시각
+bool heartbeatSeen = false;   // 첫 하트비트 전에는 끊김 판단 안 함
+bool commLostSent = false;    // 한 번 끊길 때 0x86은 한 번만 보냄
+bool safeStopped = false;     // 안전 정지 중: 0x06(모터) 무시, 0x01로 대기(0)·복귀(5)를 받으면 풀림
 
 // 센서 핀 (HW 배선 기준)
 const uint8_t TRIG_PIN = 10, ECHO_PIN = 11;  // 초음파 HC-SR04
@@ -106,6 +111,7 @@ void handleCommand(uint8_t cmd, uint8_t d1, uint8_t d2) {
     case CMD_STATE:  // 0x01 상태 변경: D1 = 상태 번호(0~5), 표정도 같은 번호로
       if (d1 > ST_RETURN) return;  // 없는 상태 번호는 무시
       currentState = d1;
+      if (d1 == ST_IDLE || d1 == ST_RETURN) safeStopped = false;  // 대기·복귀를 받으면 안전 정지 풀림
       drawFace(d1);
       break;
     case CMD_SERVO:  // 0x02 서보: D1 = 채널(0~2), D2 = 각도(0~180)
@@ -122,6 +128,7 @@ void handleCommand(uint8_t cmd, uint8_t d1, uint8_t d2) {
       drawFace(d1);
       break;
     case CMD_MOTOR:  // 0x06 모터: D1 = 0 정지 / 1 전진 / 2 후진 / 3 좌회전 / 4 우회전, D2 = 속도
+      if (safeStopped) return;  // 안전 정지 중에는 모터 명령 무시 (0x84 안 보냄)
       switch (d1) {
         case 1: forward(d2); break;
         case 2: backward(d2); break;
@@ -132,6 +139,8 @@ void handleCommand(uint8_t cmd, uint8_t d1, uint8_t d2) {
       break;
     case CMD_HEARTBEAT:  // 0x07 하트비트: 받은 시각만 기록, 0x84 없음
       lastHeartbeatMs = millis();
+      heartbeatSeen = true;
+      commLostSent = false;  // 다시 연결됨 (안전 정지는 0x01 대기·복귀로만 풀림)
       return;
     default:
       sendPacket(RSP_ERROR, ERR_UNKNOWN_CMD, 0);
@@ -171,6 +180,17 @@ void periodicTasks(unsigned long now) {
   }
 }
 
+// 하트비트가 1초 넘게 끊기면 모터를 멈추고 0x86(원인 2 통신 끊김)을 보낸다
+void checkHeartbeat(unsigned long now) {
+  if (!heartbeatSeen || commLostSent) return;
+  if (now - lastHeartbeatMs > HEARTBEAT_TIMEOUT_MS) {
+    stopMotor();
+    safeStopped = true;
+    commLostSent = true;
+    sendPacket(RSP_SAFE_STOP, STOP_COMM_LOST, 0);
+  }
+}
+
 void setup() {
   LINK.begin(BAUD);
   pinMode(TRIG_PIN, OUTPUT);
@@ -182,5 +202,7 @@ void loop() {
   if (receivePacket(cmd, d1, d2)) {
     handleCommand(cmd, d1, d2);
   }
-  periodicTasks(millis());
+  unsigned long now = millis();
+  periodicTasks(now);
+  checkHeartbeat(now);
 }
