@@ -13,7 +13,7 @@
 //   [x] 표정 그리기 drawFace(번호): face.h (U8g2 _1_ 페이지 버퍼)
 //       + 대기 깜빡임·10초 뒤 잠, 이동 중 입 꼼지락, 복귀 끝나면 웃음 (updateFace)
 //   [x] 멜로디 playMelody(번호): melody.h (PROGMEM, 1 깸 / 2 기쁨 / 3 잘 자), 끝나면 0x84
-//   [ ] 자체 소음 블랭킹: 모터·서보·부저 동작 중 + 끝난 뒤 300ms 마이크 무시
+//   [x] 자체 소음 블랭킹: 모터·서보·부저 동작 중 + 끝난 뒤 300ms 마이크 무시 (+ 박수 감지 → 0x81)
 //   [ ] String 안 쓰기, SRAM 75% 이하
 
 #include "protocol.h"
@@ -116,6 +116,59 @@ void turnLeft(uint8_t spd) {}
 void turnRight(uint8_t spd) {}
 void stopMotor() {}
 
+// ---- 박수 감지 + 자체 소음 블랭킹 ----
+// 박수: 50ms 동안 마이크 최댓값−최솟값이 임계값(200)을 넘으면 0x81 (HW mic_test 측정 방식)
+// 블랭킹: 로봇 자기 소리(모터·서보·부저)를 박수로 착각하지 않게,
+//         그것들이 동작하는 동안 + 끝난 뒤 300ms는 마이크를 무시한다
+const uint8_t MIC_PIN = A0;
+const unsigned long CLAP_WINDOW_MS = 50;      // 이 시간 동안의 최댓값−최솟값을 본다
+const unsigned long CLAP_COOLDOWN_MS = 500;   // 박수 한 번이 두 번 잡히지 않게
+const unsigned long BLANK_AFTER_MS = 300;     // 동작이 끝난 뒤에도 300ms는 무시
+const unsigned long SERVO_MOVE_MS = 500;      // 서보 명령 뒤 움직이는 시간으로 본다
+
+bool motorRunning = false;          // 모터가 도는 중인지
+unsigned long quietAfterMs = 0;     // 이 시각 전까지는 마이크 무시
+int micLo = 1023, micHi = 0;        // 지금 50ms 동안의 최솟값·최댓값
+unsigned long micWindowStart = 0;
+bool micWindowNoisy = false;        // 이번 50ms 중에 자기 소리가 있었는지
+bool clapSeen = false;
+unsigned long lastClapMs = 0;
+
+// 마이크를 무시할 시각을 t까지 늘린다
+void blankUntil(unsigned long t) {
+  if ((long)(t - quietAfterMs) > 0) quietAfterMs = t;
+}
+
+// 지금 로봇이 자기 소리를 내고 있는지 (모터·부저 동작 중, 또는 끝난 지 300ms 안)
+bool selfNoise(unsigned long now) {
+  return motorRunning || melodyPlaying() || (long)(quietAfterMs - now) > 0;
+}
+
+// 모터 상태를 기록한다. 멈추면 그때부터 300ms 블랭킹
+void setMotorRunning(bool on) {
+  if (motorRunning && !on) blankUntil(millis() + BLANK_AFTER_MS);
+  motorRunning = on;
+}
+
+void checkClap(unsigned long now) {
+  int v = analogRead(MIC_PIN);
+  if (v < micLo) micLo = v;
+  if (v > micHi) micHi = v;
+  if (selfNoise(now)) micWindowNoisy = true;
+  if (now - micWindowStart < CLAP_WINDOW_MS) return;
+
+  int peak = micHi - micLo;
+  bool noisy = micWindowNoisy;
+  micLo = 1023; micHi = 0; micWindowStart = now; micWindowNoisy = false;  // 다음 50ms 시작
+
+  if (noisy || peak <= (int)clapThreshold) return;            // 자기 소리였거나 작은 소리
+  if (clapSeen && now - lastClapMs < CLAP_COOLDOWN_MS) return; // 방금 박수와 같은 소리
+  clapSeen = true;
+  lastClapMs = now;
+  uint16_t loud = peak / 4;
+  sendPacket(RSP_TRIGGER, loud > 255 ? 255 : loud, 0);  // 0x81: D1 = 소리 크기÷4
+}
+
 // 받은 명령을 CMD별로 나눠 처리하고, 끝나면 0x84(D1 = 완료한 CMD)를 보낸다
 //   0x07 하트비트는 0x84를 보내지 않는다 / 모르는 CMD는 0x85 원인 3
 void handleCommand(uint8_t cmd, uint8_t d1, uint8_t d2) {
@@ -129,6 +182,7 @@ void handleCommand(uint8_t cmd, uint8_t d1, uint8_t d2) {
     case CMD_SERVO:  // 0x02 서보: D1 = 채널(0~2), D2 = 각도(0~180)
       if (d2 > 180) d2 = 180;
       setAngle(d1, d2);
+      blankUntil(millis() + SERVO_MOVE_MS + BLANK_AFTER_MS);  // 서보 소리 블랭킹
       break;
     case CMD_MELODY:  // 0x03 멜로디: D1 = 번호 (0 멈춤 / 1 깸 / 2 기쁨 / 3 잘 자)
       if (playMelody(d1)) return;  // 재생이 끝날 때 loop()에서 0x84를 보냄
@@ -148,6 +202,7 @@ void handleCommand(uint8_t cmd, uint8_t d1, uint8_t d2) {
         case 4: turnRight(d2); break;
         default: stopMotor(); break;
       }
+      setMotorRunning(d1 >= 1 && d1 <= 4);  // 모터 소리 블랭킹
       break;
     case CMD_HEARTBEAT:  // 0x07 하트비트: 받은 시각만 기록, 0x84 없음
       lastHeartbeatMs = millis();
@@ -185,6 +240,7 @@ void checkNear(uint8_t cm) {
   if (cm <= NEAR_STOP_CM) {
     if (nearSent) return;
     stopMotor();
+    setMotorRunning(false);
     safeStopped = true;
     nearSent = true;
     sendPacket(RSP_SAFE_STOP, STOP_NEAR_OBSTACLE, 0);
@@ -212,6 +268,7 @@ void checkHeartbeat(unsigned long now) {
   if (!heartbeatSeen || commLostSent) return;
   if (now - lastHeartbeatMs > HEARTBEAT_TIMEOUT_MS) {
     stopMotor();
+    setMotorRunning(false);
     safeStopped = true;
     commLostSent = true;
     sendPacket(RSP_SAFE_STOP, STOP_COMM_LOST, 0);
@@ -235,5 +292,9 @@ void loop() {
   periodicTasks(now);
   checkHeartbeat(now);
   updateFace(now);  // 표정 움직임 (깜빡임·잠·입 꼼지락)
-  if (updateMelody(now)) sendPacket(RSP_DONE, CMD_MELODY, 0);  // 멜로디가 끝나면 0x84
+  if (updateMelody(now)) {  // 멜로디가 끝나면 0x84 + 부저 소리 블랭킹 300ms
+    sendPacket(RSP_DONE, CMD_MELODY, 0);
+    blankUntil(now + BLANK_AFTER_MS);
+  }
+  checkClap(now);
 }
