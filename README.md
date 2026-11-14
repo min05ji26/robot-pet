@@ -19,4 +19,4 @@
 | 단계 | 내용 (SW) | 상태 |
 |---|---|---|
 | [1단계](progress/1단계/) | 가짜 아두이노, 패킷 송신·수신 subVI, 상태머신 뼈대, 박수 → 트리거감지, VISA 연결 | ✅ SW 완료 (통합 점검 ① 대기) |
-| [2단계](progress/2단계/) | 펌웨어 receivePacket·handleCommand, 주기 작업, 하트비트 | 🚧 진행 중 (receivePacket ✅) |
+| [2단계](progress/2단계/) | 펌웨어 receivePacket·handleCommand, 주기 작업, 하트비트 | 🚧 진행 중 (receivePacket ✅, handleCommand ✅) |
