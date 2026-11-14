@@ -14,7 +14,7 @@
 //       + 대기 깜빡임·10초 뒤 잠, 이동 중 입 꼼지락, 복귀 끝나면 웃음 (updateFace)
 //   [x] 멜로디 playMelody(번호): melody.h (PROGMEM, 1 깸 / 2 기쁨 / 3 잘 자), 끝나면 0x84
 //   [x] 자체 소음 블랭킹: 모터·서보·부저 동작 중 + 끝난 뒤 300ms 마이크 무시 (+ 박수 감지 → 0x81)
-//   [ ] String 안 쓰기, SRAM 75% 이하
+//   [x] String 안 쓰기, SRAM 75% 이하 (String·Serial.print 없음, SRAM 921B 44%)
 
 #include "protocol.h"
 #include "face.h"  // 표정 drawFace() — 라이브러리 매니저에서 U8g2 설치 필요
