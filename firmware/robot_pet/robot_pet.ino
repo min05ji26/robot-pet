@@ -5,7 +5,7 @@
 // 진행 (노션 2단계 SW)
 //   [x] receivePacket() + 체크섬 검사 + 오류 시 0x85 전송
 //   [x] handleCommand() 분기 뼈대 (0x01~0x07), 처리 후 0x84
-//   [ ] 주기 작업: 초음파 200ms → 0x82, 배터리 1초 → 0x83
+//   [x] 주기 작업: 초음파 200ms → 0x82, 배터리 1초 → 0x83
 //   [ ] 하트비트 1초 끊기면 모터 정지 + 0x86
 
 #include "protocol.h"
@@ -31,6 +31,15 @@ uint8_t rxLen = 0;
 uint8_t currentState = ST_IDLE;   // LabVIEW가 0x01로 알려 주는 현재 상태 (0~5)
 uint16_t clapThreshold = 200;     // 박수 임계값 (마이크 3.3V, 50ms 최댓값−최솟값 기준 측정값)
 unsigned long lastHeartbeatMs = 0;  // 마지막 0x07 받은 시각 (하트비트 감시 항목에서 사용)
+
+// 센서 핀 (HW 배선 기준)
+const uint8_t TRIG_PIN = 10, ECHO_PIN = 11;  // 초음파 HC-SR04
+const uint8_t BATT_PIN = A1;                 // 배터리 분압(10kΩ×2)
+
+// 주기 작업 간격
+const unsigned long DIST_PERIOD_MS = 200;
+const unsigned long BATT_PERIOD_MS = 1000;
+unsigned long lastDistMs = 0, lastBattMs = 0;
 
 void sendPacket(uint8_t cmd, uint8_t d1, uint8_t d2) {
   uint8_t pkt[PACKET_LEN] = {STX, cmd, d1, d2, checksum(cmd, d1, d2), ETX};
@@ -131,8 +140,41 @@ void handleCommand(uint8_t cmd, uint8_t d1, uint8_t d2) {
   sendPacket(RSP_DONE, cmd, 0);
 }
 
+// ---- 센서 읽기 (HW 측정 코드 firmware/tests/ultrasonic_test, battery_test에서 가져옴) ----
+
+// 거리(cm). 30ms 안에 메아리가 없으면(약 5m 넘음) 255 = 최대
+uint8_t readDistanceCm() {
+  digitalWrite(TRIG_PIN, LOW);  delayMicroseconds(2);
+  digitalWrite(TRIG_PIN, HIGH); delayMicroseconds(10);
+  digitalWrite(TRIG_PIN, LOW);
+  unsigned long t = pulseIn(ECHO_PIN, HIGH, 30000);
+  if (t == 0) return 255;
+  unsigned long cm = (t * 17 + 500) / 1000;  // t × 0.034 ÷ 2, 반올림
+  return cm > 255 ? 255 : cm;
+}
+
+// 배터리 전압 × 10 (예: 8.4V → 84). 분압이라 측정값 × 2
+uint8_t readBatteryX10() {
+  unsigned long raw = analogRead(BATT_PIN);
+  return (raw * 100 + 511) / 1023;  // raw × 5 ÷ 1023 × 2 × 10, 반올림
+}
+
+// 정해진 시간마다 센서 값을 LabVIEW로 보낸다 (delay 없이 millis로 재서 패킷 받기를 막지 않음)
+void periodicTasks(unsigned long now) {
+  if (now - lastDistMs >= DIST_PERIOD_MS) {
+    lastDistMs = now;
+    sendPacket(RSP_DISTANCE, readDistanceCm(), 0);  // 0x82: D1 = cm
+  }
+  if (now - lastBattMs >= BATT_PERIOD_MS) {
+    lastBattMs = now;
+    sendPacket(RSP_BATTERY, readBatteryX10(), 0);   // 0x83: D1 = 전압 × 10
+  }
+}
+
 void setup() {
   LINK.begin(BAUD);
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
 }
 
 void loop() {
@@ -140,4 +182,5 @@ void loop() {
   if (receivePacket(cmd, d1, d2)) {
     handleCommand(cmd, d1, d2);
   }
+  periodicTasks(millis());
 }
