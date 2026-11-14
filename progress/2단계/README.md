@@ -92,7 +92,9 @@
 | 0x01 상태 9 | (무시) ✅ |
 | 체크섬 틀림 | `02 85 01 00 86 03` ✅ |
 
-Arduino IDE 컴파일 성공 ✅
+Arduino IDE 컴파일 성공 ✅ (Uno 1794바이트 5% / 191바이트 9%)
+
+![handleCommand 컴파일](images/handle_command_compile.png)
 
 ## 3. 주기 작업
 
