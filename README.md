@@ -20,4 +20,4 @@
 |---|---|---|
 | [1단계](progress/1단계/) | 가짜 아두이노, 패킷 송신·수신 subVI, 상태머신 뼈대, 박수 → 트리거감지, VISA 연결 | ✅ SW 완료 (통합 점검 ① 대기) |
 | [2단계](progress/2단계/) | 펌웨어 receivePacket·handleCommand, 주기 작업, 하트비트, 근접 10cm 정지 | ✅ SW 완료 (통합 점검 ② 대기) |
-| [3단계](progress/3단계/) | 표정 drawFace, 멜로디, 소음 블랭킹, SRAM | 🚧 진행 중 (drawFace ✅) |
+| [3단계](progress/3단계/) | 표정 drawFace, 멜로디, 소음 블랭킹, SRAM | 🚧 진행 중 (drawFace ✅, playMelody ✅) |
