@@ -49,6 +49,8 @@
 
 ![대기 Case](images/state_actions_idle_case.png)
 
+![트리거감지 Case + 실행 화면 (대기 상태명령)](images/state_actions_trigger_case_running.png)
+
 > - 지금은 다음 상태로 넘어가는 조건이 없어서 탐색이동에 들어가면 계속 전진 → 2번 항목
 > - 회피는 지금 후진만 (10주차 "후진 + 회전"은 시간 순서와 함께)
 
