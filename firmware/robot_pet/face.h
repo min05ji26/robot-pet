@@ -83,14 +83,18 @@ void drawFrame(uint8_t f) {
         u8g2.drawLine(78, 32, 88, 22); u8g2.drawLine(88, 22, 98, 32);
         u8g2.drawCircle(64, 42, 12, U8G2_DRAW_LOWER_LEFT | U8G2_DRAW_LOWER_RIGHT);
         break;
-      case F_FOCUS_A:  // 이동 중: 집중한 눈(위를 일자로 자름) + 입 ①
-      case F_FOCUS_B:  //                                 + 입 ②
-        u8g2.drawDisc(40, 30, 10);
-        u8g2.drawDisc(88, 30, 10);
+      case F_FOCUS_A:  // 이동 중: 또렷하게 뜬 눈 + 반짝 + 안쪽으로 내린 눈썹(집중) + 입 ①
+      case F_FOCUS_B:  //                                                       + 입 ②
+        // 눈: 위를 자르지 않고 동그랗게 다 뜬다 (전에는 위를 잘라서 졸린 눈처럼 보였음)
+        u8g2.drawDisc(40, 30, 11);
+        u8g2.drawDisc(88, 30, 11);
         u8g2.setDrawColor(0);
-        u8g2.drawBox(28, 16, 24, 9);
-        u8g2.drawBox(76, 16, 24, 9);
+        u8g2.drawDisc(44, 26, 3);  // 반짝 (F_BIG보다 작게)
+        u8g2.drawDisc(92, 26, 3);
         u8g2.setDrawColor(1);
+        // 눈썹: 바깥은 높고 안쪽은 낮게 → 앞을 노려보는 집중 표정 (2px 두께)
+        u8g2.drawLine(28, 11, 50, 15); u8g2.drawLine(28, 12, 50, 16);
+        u8g2.drawLine(78, 15, 100, 11); u8g2.drawLine(78, 16, 100, 12);
         if (f == F_FOCUS_A) {
           u8g2.drawLine(56, 52, 72, 52);
         } else {
