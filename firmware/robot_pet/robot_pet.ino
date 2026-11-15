@@ -19,6 +19,7 @@
 #include "protocol.h"
 #include "face.h"  // 표정 drawFace() — 라이브러리 매니저에서 U8g2 설치 필요
 #include "melody.h"  // 멜로디 playMelody() — 부저 D12
+#include <Adafruit_PWMServoDriver.h>  // 서보 PCA9685 — 라이브러리 매니저에서 Adafruit PWM Servo Driver 설치 필요
 
 // 통신 경로 선택
 //   0 = USB 케이블 (Serial)          ← LabVIEW와 USB로 시험할 때
@@ -107,14 +108,46 @@ bool receivePacket(uint8_t &cmd, uint8_t &d1, uint8_t &d2) {
   return false;
 }
 
-// ---- 부품 함수 자리 (HW 담당 코드를 가져와 채운다) ----
-// 지금은 비어 있어서 명령을 받아도 부품은 안 움직이고 0x84만 보낸다
-void setAngle(uint8_t ch, uint8_t angle) {}  // 서보: firmware/tests/servo_oled_test
-void forward(uint8_t spd) {}                 // 모터: firmware/tests/motor_functions
-void backward(uint8_t spd) {}
-void turnLeft(uint8_t spd) {}
-void turnRight(uint8_t spd) {}
-void stopMotor() {}
+// ---- 부품 함수 (HW 시험 코드에서 가져옴) ----
+
+// 서보: firmware/tests/servo_oled_test (PCA9685 0x40, 50Hz, SERVOMIN 150 / SERVOMAX 600)
+Adafruit_PWMServoDriver pca = Adafruit_PWMServoDriver(0x40);
+const uint16_t SERVOMIN = 150, SERVOMAX = 600;
+
+void servoBegin() {
+  pca.begin();
+  pca.setPWMFreq(50);
+  for (uint8_t ch = 0; ch < 3; ch++) pca.setPWM(ch, 0, map(90, 0, 180, SERVOMIN, SERVOMAX));  // 시작은 가운데(90도)
+}
+
+
+
+void setAngle(uint8_t ch, uint8_t angle) {
+  if (ch > 2) return;  // 서보는 채널 0~2만 사용
+  pca.setPWM(ch, 0, map(angle, 0, 180, SERVOMIN, SERVOMAX));
+}
+
+// 모터: firmware/tests/motor_functions (L298N, 초음파 쪽이 앞 기준으로 방향 확인 완료)
+//   IN1~4 → D2/D3/D4/D7, ENA/ENB → D5/D6 (Timer0 PWM이라 AltSoftSerial·tone과 안 겹침)
+const uint8_t ENA = 5, IN1 = 2, IN2 = 3;
+const uint8_t ENB = 6, IN3 = 4, IN4 = 7;
+
+void motorBegin() {
+  pinMode(ENA, OUTPUT); pinMode(IN1, OUTPUT); pinMode(IN2, OUTPUT);
+  pinMode(ENB, OUTPUT); pinMode(IN3, OUTPUT); pinMode(IN4, OUTPUT);
+}
+
+void motor(uint8_t a1, uint8_t a2, uint8_t b1, uint8_t b2, uint8_t spd) {
+  digitalWrite(IN1, a1); digitalWrite(IN2, a2);
+  digitalWrite(IN3, b1); digitalWrite(IN4, b2);
+  analogWrite(ENA, spd); analogWrite(ENB, spd);
+}
+
+void forward(uint8_t spd)   { motor(1, 0, 1, 0, spd); }
+void backward(uint8_t spd)  { motor(0, 1, 0, 1, spd); }
+void turnLeft(uint8_t spd)  { motor(1, 0, 0, 1, spd); }
+void turnRight(uint8_t spd) { motor(0, 1, 1, 0, spd); }
+void stopMotor()            { motor(0, 0, 0, 0, 0); }
 
 // ---- 박수 감지 + 자체 소음 블랭킹 ----
 // 박수: 50ms 동안 마이크 최댓값−최솟값이 임계값(200)을 넘으면 0x81 (HW mic_test 측정 방식)
@@ -277,7 +310,10 @@ void checkHeartbeat(unsigned long now) {
 
 void setup() {
   LINK.begin(BAUD);
+  motorBegin();
+  stopMotor();        // 켜자마자 바퀴가 돌지 않게
   faceBegin();
+  servoBegin();       // faceBegin() 다음: 같은 I2C(A4/A5)를 OLED와 나눠 씀
   drawFace(ST_IDLE);  // 전원 켜면 대기(감은 눈)
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
