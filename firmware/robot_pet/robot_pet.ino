@@ -265,6 +265,9 @@ uint8_t readDistanceCm() {
 // 배터리 전압 × 10 (예: 8.4V → 84). 분압이라 측정값 × 2
 uint8_t readBatteryX10() {
   unsigned long raw = analogRead(BATT_PIN);
+  // A1(약 4.2V)을 읽은 직후 A0를 읽으면 ADC에 앞의 값이 남아 마이크 값이 튄다
+  // → 가짜 박수(0x81)가 나와서, 마이크를 한 번 읽고 버린다 (11/16 소연 USB 시험에서 발견)
+  analogRead(MIC_PIN);
   return (raw * 100 + 511) / 1023;  // raw × 5 ÷ 1023 × 2 × 10, 반올림
 }
 
